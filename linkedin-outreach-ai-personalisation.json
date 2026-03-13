@@ -1,0 +1,678 @@
+{
+  "name": "LinkedIn Outreach - AI Personalised Connection Requests",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1, 2, 3, 4, 5],
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-4640, 400],
+      "id": "ca7b439d-0d70-4981-9949-54cdbb698f85",
+      "name": "Schedule Trigger",
+      "notes": "Runs Mon-Fri at 11am. Edit triggerAtDay to change days. 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Startup delay — randomise to avoid predictable bot-like patterns\nconst delayMinutes = 1;\n\nconsole.log('Workflow started - waiting ' + delayMinutes + ' minute(s) before processing');\n\nreturn [{\n  json: {\n    delayMinutes: delayMinutes,\n    message: 'Startup delay before first connection attempt'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-4416, 400],
+      "id": "201e3c68-6dfa-4159-ba09-9995ca857311",
+      "name": "Generate Random Time"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delayMinutes }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-4192, 400],
+      "id": "a9aeac29-204f-4de6-afb5-58fc6c68d81b",
+      "name": "Wait Until Start Time",
+      "webhookId": "YOUR_WEBHOOK_ID_1",
+      "notes": "Replace YOUR_WEBHOOK_ID_1 with a unique ID (e.g. wait-start-001)"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "LinkedIn_Outreach_Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [-3968, 400],
+      "id": "c47fd044-2f45-4f94-84b8-d18a85f69e1c",
+      "name": "Get Unsent Connections",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Reads all rows from your Google Sheet. Replace YOUR_GOOGLE_SHEET_ID with your actual Sheet ID (found in the URL). Sheet must have column: LinkedIn Connection Sent — leave blank for unsent contacts."
+    },
+    {
+      "parameters": {
+        "jsCode": "// DAILY SAFETY LIMIT — keeps LinkedIn activity within safe human-like range\n// LinkedIn flags accounts sending too many requests per day\nconst minConnections = 8;\nconst maxConnections = 12;\nconst dailyLimit = Math.floor(Math.random() * (maxConnections - minConnections + 1)) + minConnections;\n\n// Only process contacts where LinkedIn Connection Sent is blank\nconst allItems = $input.all();\nconst unsentItems = allItems.filter(item => \n  !item.json['LinkedIn Connection Sent'] || \n  item.json['LinkedIn Connection Sent'].toString().trim() === ''\n);\n\nconst limitedItems = unsentItems.slice(0, dailyLimit);\n\nconsole.log('Total unsent contacts: ' + unsentItems.length);\nconsole.log('Daily limit set to: ' + dailyLimit);\nconsole.log('Processing today: ' + limitedItems.length + ' contacts');\n\nif (limitedItems.length === 0) {\n  console.log('No unsent contacts found — workflow complete');\n}\n\nreturn limitedItems.map((item, index) => ({\n  json: {\n    ...item.json,\n    currentIndex: index + 1,\n    totalToProcess: limitedItems.length\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-3744, 400],
+      "id": "df748c0e-fccc-45be-bcb0-d9f099454180",
+      "name": "Apply Random Limit",
+      "notes": "Filters to unsent contacts only. Randomly picks 8-12 per day to mimic human behaviour. Adjust minConnections and maxConnections as needed."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-3520, 400],
+      "id": "98f0d717-6a10-4a24-9370-df381ef3a1a5",
+      "name": "Process One by One",
+      "notes": "Processes contacts one at a time. This is critical — do NOT change to batch mode or LinkedIn will detect automation."
+    },
+    {
+      "parameters": {
+        "operation": "getProfileData",
+        "linkedinUrl": "={{ $json['Person Linkedin Url'] }}"
+      },
+      "type": "n8n-nodes-browserflow.browserflow",
+      "typeVersion": 1,
+      "position": [-3296, 48],
+      "id": "bbb6c809-47a3-4aa4-9c5e-757f526312b7",
+      "name": "Get LinkedIn Profile Data",
+      "credentials": {
+        "browserflowApi": {
+          "id": "YOUR_BROWSERFLOW_CREDENTIAL_ID",
+          "name": "Browserflow account"
+        }
+      },
+      "notes": "Fetches live LinkedIn profile data via Browserflow. Replace YOUR_BROWSERFLOW_CREDENTIAL_ID. Requires Browserflow subscription at browserflow.app"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-3072, 48],
+      "id": "c8723671-f209-489a-95dd-28b26ab8fcbf",
+      "name": "Wait After Profile",
+      "webhookId": "YOUR_WEBHOOK_ID_2",
+      "notes": "2 minute pause after fetching profile — avoids hitting LinkedIn rate limits"
+    },
+    {
+      "parameters": {
+        "jsCode": "// FUNCTIONAL AREA DETECTION\n// Maps job title keywords to pharma functional areas\n// Each area has a tailored AI prompt with specific pain points and benefits\n\nconst title = ($json.data?.experience?.[0]?.job_title || $json['Title'] || '').toLowerCase();\n\nconst departmentMap = {\n  'medical affairs': ['medical affairs', 'msl', 'medical science liaison', 'medical director', 'medical manager'],\n  'market access': ['market access', 'payer', 'reimbursement', 'pricing', 'access', 'formulary'],\n  'clinical development': ['clinical', 'clinical development', 'clinical operations', 'clinical trial', 'study manager'],\n  'regulatory': ['regulatory', 'regulatory affairs', 'compliance', 'regulatory strategy', 'submissions'],\n  'commercial': ['commercial', 'marketing', 'sales', 'brand', 'launch', 'product manager'],\n  'business development': ['business development', 'bd', 'licensing', 'alliance', 'partnerships'],\n  'heor': ['heor', 'health economics', 'outcomes research', 'real world evidence', 'rwe', 'pharmacoeconomics']\n};\n\n// Default to clinical development if no match found\nlet functionalArea = 'clinical development';\n\nfor (const [dept, keywords] of Object.entries(departmentMap)) {\n  if (keywords.some(keyword => title.includes(keyword))) {\n    functionalArea = dept;\n    break;\n  }\n}\n\nconsole.log('Job title detected: ' + title);\nconsole.log('Mapped to functional area: ' + functionalArea);\n\nreturn [{\n  json: {\n    ...$json,\n    functionalArea: functionalArea\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2848, 48],
+      "id": "5a1e5275-de14-4813-b320-4276cc5dabb2",
+      "name": "Identify Functional Area",
+      "notes": "Detects pharma functional area from job title. Add more keywords to departmentMap as needed for your target personas."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert at writing ultra-concise LinkedIn connection messages for pharmaceutical professionals.\n\nCONTEXT:\nYOUR_COMPANY has developed YOUR_PRODUCT, an AI-powered pharmaceutical intelligence platform that automates workflows across Medical Affairs, Regulatory, Market Access, Clinical Development, and HEOR.\n\nRECIPIENT:\n- Name: {{ $json.data.name.split(' ')[0] }}\n- Title: {{ $json.data.experience[0].job_title }}\n- Company: {{ $json.data.experience[0].company_name }}\n- Functional Area: {{ $json.functionalArea }}\n\nSTRICT REQUIREMENTS:\n1. Length: 100-120 characters (STRICT - count carefully)\n2. MUST include one of: \"AI solution\", \"AI application\", \"AI-powered platform\", \"AI platform\"\n3. Use first person: \"we have developed\" or \"our\"\n4. Professional, consultative tone\n5. Never mention competitor products\n6. Never sound salesy or pushy\n\nMESSAGE PATTERNS (choose one randomly):\n\nPATTERN 1 - Capability Focus:\n\"Hi {name}, we have developed a/an [AI-powered platform/AI solution] for {function}—[benefit]. [CTA]?\"\n\nPATTERN 2 - Problem-Solution Focus:\n\"Hi {name}, Tackle [pain point] with our [AI solution/AI platform]—[metric]. [CTA]?\"\n\nFUNCTIONAL BENEFITS:\n- Medical Affairs: 80% faster evidence synthesis, publication automation, MSL intelligence\n- Regulatory: 50% faster submissions, compliance tracking, regulatory pathways\n- Market Access: 65% higher formulary acceptance, payer intelligence, 70% cost reduction\n- Clinical Development: 50% faster protocols, reduced trial duration, patient recruitment\n- HEOR: Accelerates evidence generation, health economic modeling, RWE generation\n- Commercial: KOL mapping, launch orchestration, competitive intelligence\n\nPAIN POINTS BY FUNCTION:\n- Medical Affairs: publication planning gaps, evidence synthesis bottlenecks\n- Regulatory: submission timelines, FDA documentation workflows\n- Market Access: payer negotiations, formulary access challenges\n- Clinical Development: trial design complexity, patient recruitment delays\n- HEOR: health economic modeling time, RWE evidence generation\n- Commercial: launch coordination, competitive intelligence gaps\n\nCTAs (pick one randomly):\n- Worth exploring?\n- Worth a chat?\n- Quick demo?\n- Brief call?\n- Worth discussing?\n\nCRITICAL: Count characters carefully. Must be 100-120 characters total.\n\nGenerate ONE message following all requirements. Return ONLY the message, no explanation.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [-2624, 48],
+      "id": "62cc5155-16f0-482b-b09f-edeb1f396433",
+      "name": "Generate AI Message",
+      "notes": "IMPORTANT: Replace YOUR_COMPANY and YOUR_PRODUCT in the prompt above with your actual company and product names before running."
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [-2560, 272],
+      "id": "65efb55f-ab63-4620-949f-1ae35c5d146a",
+      "name": "Claude AI Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic (Claude) account"
+        }
+      },
+      "notes": "Uses Claude Sonnet for message generation. Replace YOUR_ANTHROPIC_CREDENTIAL_ID. Get your API key at console.anthropic.com. IMPROVEMENT: Switched from OpenAI GPT-4o to Claude for better pharma domain understanding and lower cost."
+    },
+    {
+      "parameters": {
+        "jsCode": "// MESSAGE QUALITY VALIDATOR\n// Ensures every AI-generated message meets LinkedIn character limits\n// and follows the required format before sending\n\nconst message = $json.text;\nconst firstName = $json.data.name.split(' ')[0];\n\nconst checks = {\n  // Must be 100-120 characters (LinkedIn connection note limit is 300 but shorter = higher acceptance)\n  length: message.length >= 100 && message.length <= 120,\n  // Must reference AI product — proves value proposition\n  hasAI: /AI solution|AI application|AI-powered platform|AI platform/i.test(message),\n  // Must use first person — sounds human, not automated\n  hasFirstPerson: /we have developed|our AI|our platform/i.test(message),\n  // Must start with Hi {FirstName}, — personalisation signal\n  startsCorrectly: message.startsWith('Hi ' + firstName + ','),\n  // Must end with a question — open loop drives replies\n  hasCTA: message.trim().endsWith('?')\n};\n\nconst allPassed = Object.values(checks).every(v => v);\n\nconsole.log('--- Message Validation Report ---');\nconsole.log('Message: ' + message);\nconsole.log('Length: ' + message.length + ' characters');\nconsole.log('All checks passed: ' + allPassed);\nconsole.log('Individual checks:', checks);\n\nif (!allPassed) {\n  const failed = Object.entries(checks)\n    .filter(([_, passed]) => !passed)\n    .map(([check]) => check);\n  console.log('FAILED checks: ' + failed.join(', '));\n  console.log('Skipping this contact and moving to next');\n  \n  return [{\n    json: {\n      ...$json,\n      messageQuality: 'FAILED',\n      failedChecks: failed\n    }\n  }];\n}\n\nconsole.log('Message approved — proceeding to send');\n\nreturn [{\n  json: {\n    ...$json,\n    messageQuality: 'PASSED',\n    validatedMessage: message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2272, 48],
+      "id": "43fff083-1f63-498f-a8c7-586e357d1cf9",
+      "name": "Validate Message Quality",
+      "notes": "Validates 5 quality checks. If any fail, contact is skipped and workflow moves to next person. Adjust checks as needed."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.messageQuality }}",
+              "rightValue": "PASSED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2048, 48],
+      "id": "9c4b66be-956b-41ce-ad0e-0877af5cabea",
+      "name": "Message Quality Check",
+      "notes": "TRUE path = message passed validation, proceed to send. FALSE path = message failed, skip to next contact."
+    },
+    {
+      "parameters": {
+        "linkedinUrl": "={{ $('Process One by One').item.json['Person Linkedin Url'] }}"
+      },
+      "type": "n8n-nodes-browserflow.browserflow",
+      "typeVersion": 1,
+      "position": [-1824, 48],
+      "id": "928d560f-fb3e-4cd2-ab82-aa4c8be65fa6",
+      "name": "Check Connection Status",
+      "credentials": {
+        "browserflowApi": {
+          "id": "YOUR_BROWSERFLOW_CREDENTIAL_ID",
+          "name": "Browserflow account"
+        }
+      },
+      "notes": "Checks if already connected or request already pending. Prevents sending duplicate requests which LinkedIn penalises."
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-1600, 48],
+      "id": "8f7126f2-4287-4172-ae0e-29ee0edc45cc",
+      "name": "Wait After Check",
+      "webhookId": "YOUR_WEBHOOK_ID_3",
+      "notes": "1 minute pause after connection status check"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_connection }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.is_pending }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-1376, 48],
+      "id": "69cbe3cf-d7cb-47a9-9cec-c6ced7b0826d",
+      "name": "Can Send Request",
+      "notes": "Only proceeds if BOTH is_connection=false AND is_pending=false. If already connected or pending — routes to SKIP."
+    },
+    {
+      "parameters": {
+        "jsCode": "// PRE-SEND HUMAN BEHAVIOUR SIMULATION\n// Random 15-35 minute wait before each connection request\n// This mimics a human browsing LinkedIn before connecting\n// Critical for avoiding LinkedIn automation detection\n\nconst minWait = 15;\nconst maxWait = 35;\nconst randomWait = Math.floor(Math.random() * (maxWait - minWait + 1)) + minWait;\n\nconsole.log('Pre-send wait: ' + randomWait + ' minutes');\nconsole.log('About to connect with: ' + $('Process One by One').item.json['First Name'] + ' ' + $('Process One by One').item.json['Last Name']);\n\n// Save all key data to state so it survives the wait node\nreturn [{\n  json: {\n    ...$json,\n    waitMinutes: randomWait,\n    savedLinkedInUrl: $('Process One by One').item.json['Person Linkedin Url'],\n    savedFirstName: $('Process One by One').item.json['First Name'],\n    savedLastName: $('Process One by One').item.json['Last Name'],\n    savedMessage: $json.validatedMessage\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1152, -48],
+      "id": "c73ad748-eaac-4dec-a6ae-a1f313822029",
+      "name": "Calculate Pre-Send Wait",
+      "notes": "Saves contact data to state before the wait — required because data can be lost across wait nodes. Adjust minWait/maxWait if needed."
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.waitMinutes }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-928, -48],
+      "id": "b3084e5b-97c0-47b7-b9f9-584f21cc7d0c",
+      "name": "Wait Before Send",
+      "webhookId": "YOUR_WEBHOOK_ID_4",
+      "notes": "Random 15-35 minute human behaviour wait before sending"
+    },
+    {
+      "parameters": {
+        "operation": "sendConnectionInvite",
+        "linkedinUrl": "={{ $json.savedLinkedInUrl }}",
+        "message": "={{ $json.savedMessage }}"
+      },
+      "type": "n8n-nodes-browserflow.browserflow",
+      "typeVersion": 1,
+      "position": [-704, -48],
+      "id": "538d240c-2ebc-44b6-a38f-253077f1cc25",
+      "name": "Try Send Connection WITH Message",
+      "credentials": {
+        "browserflowApi": {
+          "id": "YOUR_BROWSERFLOW_CREDENTIAL_ID",
+          "name": "Browserflow account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "Attempts to send connection WITH the AI-generated personalised message. If this fails (e.g. profile has messaging disabled), falls back to blank connection request."
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-480, -48],
+      "id": "7a3b5757-5f45-4a43-a568-e56569d197d3",
+      "name": "Wait After Send Attempt",
+      "webhookId": "YOUR_WEBHOOK_ID_5",
+      "notes": "2 minute pause after send attempt before checking if it worked"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SEND RESULT CHECKER\n// Determines if the personalised message was sent successfully\n// or if we need to fall back to a blank connection request\n\nconst sendResult = $('Try Send Connection WITH Message').first();\nconst sendFailed = sendResult.error || sendResult.json?.error;\n\nif (sendFailed) {\n  console.log('Personalised message send FAILED');\n  console.log('Reason: ' + (sendResult.error?.message || sendResult.json?.error || 'Unknown error'));\n  console.log('Falling back to blank connection request');\n  \n  return [{\n    json: {\n      ...$json,\n      messageSentStatus: 'FAILED',\n      errorReason: sendResult.error?.message || 'Cannot send note to this profile',\n      needsBlankRequest: true\n    }\n  }];\n}\n\nconsole.log('Personalised connection request sent successfully');\n\nreturn [{\n  json: {\n    ...$json,\n    messageSentStatus: 'SUCCESS',\n    needsBlankRequest: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-256, -48],
+      "id": "98876710-631d-447e-8bf8-a7d366c1d6f9",
+      "name": "Check Send Success"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.messageSentStatus }}",
+              "rightValue": "SUCCESS",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-32, -48],
+      "id": "5e0c7d4c-1955-4366-97c7-4c98633d65ca",
+      "name": "Message Sent Successfully",
+      "notes": "TRUE = sent with message, update sheet as 'YES + MESSAGE'. FALSE = send failed, try blank request instead."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "LinkedIn_Outreach_Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn Connection Sent": "YES + MESSAGE",
+            "Person Linkedin Url": "={{ $json.savedLinkedInUrl }}",
+            "First Name": "={{ $json.savedFirstName }}",
+            "Last Name": "={{ $json.savedLastName }}",
+            "Connection Request Date": "={{ new Date().toLocaleDateString('en-CA') }}",
+            "Message Sent": "={{ $json.savedMessage }}",
+            "row_number": 0
+          },
+          "matchingColumns": ["Person Linkedin Url"],
+          "schema": [
+            { "id": "First Name", "displayName": "First Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Last Name", "displayName": "Last Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Person Linkedin Url", "displayName": "Person Linkedin Url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Title", "displayName": "Title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Company", "displayName": "Company", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "LinkedIn Connection Sent", "displayName": "LinkedIn Connection Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Request Date", "displayName": "Connection Request Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Message Sent", "displayName": "Message Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Accepted Date", "displayName": "Connection Accepted Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "row_number", "displayName": "row_number", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": true, "readOnly": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [640, -144],
+      "id": "6c4b6da6-14bd-479e-b410-54603b18fce9",
+      "name": "Update Sheet - Sent with Message",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Logs successful sends. Status = 'YES + MESSAGE'. Records the exact message sent and date."
+    },
+    {
+      "parameters": {
+        "operation": "sendConnectionInvite",
+        "linkedinUrl": "={{ $json.savedLinkedInUrl }}"
+      },
+      "type": "n8n-nodes-browserflow.browserflow",
+      "typeVersion": 1,
+      "position": [192, 48],
+      "id": "90d27d63-3780-4aef-93b5-28af954bd392",
+      "name": "Send Blank Connection Request",
+      "credentials": {
+        "browserflowApi": {
+          "id": "YOUR_BROWSERFLOW_CREDENTIAL_ID",
+          "name": "Browserflow account"
+        }
+      },
+      "notes": "Fallback when personalised message fails. Sends a blank connection request with no note. Still logs to sheet as 'YES (BLANK)'."
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [416, 48],
+      "id": "13b1758a-53db-4adc-9bbb-1f61e102262f",
+      "name": "Wait After Blank Send",
+      "webhookId": "YOUR_WEBHOOK_ID_6",
+      "notes": "2 minute pause after blank send"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "LinkedIn_Outreach_Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn Connection Sent": "YES (BLANK)",
+            "Person Linkedin Url": "={{ $json.savedLinkedInUrl }}",
+            "First Name": "={{ $json.savedFirstName }}",
+            "Last Name": "={{ $json.savedLastName }}",
+            "Connection Request Date": "={{ new Date().toLocaleDateString('en-CA') }}",
+            "Message Sent": "Blank request — profile did not support connection note",
+            "row_number": 0
+          },
+          "matchingColumns": ["Person Linkedin Url"],
+          "schema": [
+            { "id": "First Name", "displayName": "First Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Last Name", "displayName": "Last Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Person Linkedin Url", "displayName": "Person Linkedin Url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Title", "displayName": "Title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Company", "displayName": "Company", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "LinkedIn Connection Sent", "displayName": "LinkedIn Connection Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Request Date", "displayName": "Connection Request Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Message Sent", "displayName": "Message Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Accepted Date", "displayName": "Connection Accepted Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "row_number", "displayName": "row_number", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": true, "readOnly": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [640, 48],
+      "id": "5ed9338a-a6e5-470b-bc73-505f82e357ce",
+      "name": "Update Sheet - Sent Blank",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Logs blank send. Status = 'YES (BLANK)'. Notes that personalised message was not supported."
+    },
+    {
+      "parameters": {
+        "jsCode": "// INTER-PERSON DELAY\n// Random 10-25 minute wait between each person\n// Makes the workflow behave like a human browsing LinkedIn\nconst minWait = 10;\nconst maxWait = 25;\nconst randomWait = Math.floor(Math.random() * (maxWait - minWait + 1)) + minWait;\n\nconsole.log('Waiting ' + randomWait + ' minutes before processing next contact');\n\nreturn [{\n  json: {\n    ...$json,\n    nextWaitMinutes: randomWait\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [864, -48],
+      "id": "c55ddbb2-2f6e-4fd3-b97d-1f13dad6ed8f",
+      "name": "Calculate Next Person Wait",
+      "notes": "Adjust minWait/maxWait to change spacing between contacts. Keep at least 10 minutes minimum."
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.nextWaitMinutes }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1088, 176],
+      "id": "e8a18559-9df6-480b-93e7-dd7071806619",
+      "name": "Wait Next Person",
+      "webhookId": "YOUR_WEBHOOK_ID_7",
+      "notes": "Random 10-25 minute wait before next contact"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "LinkedIn_Outreach_Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn Connection Sent": "SKIPPED",
+            "Person Linkedin Url": "={{ $('Process One by One').item.json['Person Linkedin Url'] }}",
+            "First Name": "={{ $('Process One by One').item.json['First Name'] }}",
+            "Last Name": "={{ $('Process One by One').item.json['Last Name'] }}",
+            "row_number": 0
+          },
+          "matchingColumns": ["Person Linkedin Url"],
+          "schema": [
+            { "id": "First Name", "displayName": "First Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Last Name", "displayName": "Last Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Person Linkedin Url", "displayName": "Person Linkedin Url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Title", "displayName": "Title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Company", "displayName": "Company", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "LinkedIn Connection Sent", "displayName": "LinkedIn Connection Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Request Date", "displayName": "Connection Request Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Message Sent", "displayName": "Message Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Connection Accepted Date", "displayName": "Connection Accepted Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "row_number", "displayName": "row_number", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": true, "readOnly": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [-1152, 144],
+      "id": "09adca10-5ec3-4bec-8e62-a306c1a0a7f3",
+      "name": "Update Sheet - Skip",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Logs skipped contacts (already connected or request pending). Status = 'SKIPPED'."
+    },
+    {
+      "parameters": {
+        "jsCode": "// SHORT WAIT FOR SKIPPED CONTACTS\n// Skipped contacts still need a pause before moving to next person\nconst randomWait = Math.floor(Math.random() * 10) + 5;\n\nconsole.log('Contact skipped — waiting ' + randomWait + ' minutes before next');\n\nreturn [{\n  json: {\n    ...$json,\n    skipWaitMinutes: randomWait\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-928, 144],
+      "id": "79fcc3e1-f371-44e4-983b-04d47365adbc",
+      "name": "Calculate Skip Wait"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.skipWaitMinutes }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-704, 144],
+      "id": "c3ca2b22-91b2-4b21-8c1a-2f2f91e5b6a1",
+      "name": "Wait Skip",
+      "webhookId": "YOUR_WEBHOOK_ID_8",
+      "notes": "5-15 minute wait after skipping a contact before moving to next"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Generate Random Time", "type": "main", "index": 0 }]] },
+    "Generate Random Time": { "main": [[{ "node": "Wait Until Start Time", "type": "main", "index": 0 }]] },
+    "Wait Until Start Time": { "main": [[{ "node": "Get Unsent Connections", "type": "main", "index": 0 }]] },
+    "Get Unsent Connections": { "main": [[{ "node": "Apply Random Limit", "type": "main", "index": 0 }]] },
+    "Apply Random Limit": { "main": [[{ "node": "Process One by One", "type": "main", "index": 0 }]] },
+    "Process One by One": { "main": [[], [{ "node": "Get LinkedIn Profile Data", "type": "main", "index": 0 }]] },
+    "Get LinkedIn Profile Data": { "main": [[{ "node": "Wait After Profile", "type": "main", "index": 0 }]] },
+    "Wait After Profile": { "main": [[{ "node": "Identify Functional Area", "type": "main", "index": 0 }]] },
+    "Identify Functional Area": { "main": [[{ "node": "Generate AI Message", "type": "main", "index": 0 }]] },
+    "Generate AI Message": { "main": [[{ "node": "Validate Message Quality", "type": "main", "index": 0 }]] },
+    "Claude AI Model": { "ai_languageModel": [[{ "node": "Generate AI Message", "type": "ai_languageModel", "index": 0 }]] },
+    "Validate Message Quality": { "main": [[{ "node": "Message Quality Check", "type": "main", "index": 0 }]] },
+    "Message Quality Check": { "main": [[{ "node": "Check Connection Status", "type": "main", "index": 0 }], [{ "node": "Process One by One", "type": "main", "index": 0 }]] },
+    "Check Connection Status": { "main": [[{ "node": "Wait After Check", "type": "main", "index": 0 }]] },
+    "Wait After Check": { "main": [[{ "node": "Can Send Request", "type": "main", "index": 0 }]] },
+    "Can Send Request": { "main": [[{ "node": "Calculate Pre-Send Wait", "type": "main", "index": 0 }], [{ "node": "Update Sheet - Skip", "type": "main", "index": 0 }]] },
+    "Calculate Pre-Send Wait": { "main": [[{ "node": "Wait Before Send", "type": "main", "index": 0 }]] },
+    "Wait Before Send": { "main": [[{ "node": "Try Send Connection WITH Message", "type": "main", "index": 0 }]] },
+    "Try Send Connection WITH Message": { "main": [[{ "node": "Wait After Send Attempt", "type": "main", "index": 0 }]] },
+    "Wait After Send Attempt": { "main": [[{ "node": "Check Send Success", "type": "main", "index": 0 }]] },
+    "Check Send Success": { "main": [[{ "node": "Message Sent Successfully", "type": "main", "index": 0 }]] },
+    "Message Sent Successfully": { "main": [[{ "node": "Update Sheet - Sent with Message", "type": "main", "index": 0 }], [{ "node": "Send Blank Connection Request", "type": "main", "index": 0 }]] },
+    "Update Sheet - Sent with Message": { "main": [[{ "node": "Calculate Next Person Wait", "type": "main", "index": 0 }]] },
+    "Send Blank Connection Request": { "main": [[{ "node": "Wait After Blank Send", "type": "main", "index": 0 }]] },
+    "Wait After Blank Send": { "main": [[{ "node": "Update Sheet - Sent Blank", "type": "main", "index": 0 }]] },
+    "Update Sheet - Sent Blank": { "main": [[{ "node": "Calculate Next Person Wait", "type": "main", "index": 0 }]] },
+    "Calculate Next Person Wait": { "main": [[{ "node": "Wait Next Person", "type": "main", "index": 0 }]] },
+    "Wait Next Person": { "main": [[{ "node": "Process One by One", "type": "main", "index": 0 }]] },
+    "Update Sheet - Skip": { "main": [[{ "node": "Calculate Skip Wait", "type": "main", "index": 0 }]] },
+    "Calculate Skip Wait": { "main": [[{ "node": "Wait Skip", "type": "main", "index": 0 }]] },
+    "Wait Skip": { "main": [[{ "node": "Process One by One", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
